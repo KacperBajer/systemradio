@@ -294,6 +294,61 @@ export const addPlaylist = async (name: string, description: string) => {
         return 'err';
     }
 };
+export const editPlaylist = async (name: string, description: string, id: number) => {
+    try {
+        const query = `
+            UPDATE playlists
+            SET name = $1, description = $2
+            WHERE id = $3;
+        `;
+
+        const result = await (conn as Pool).query(query, [name, description, id]);
+        return 'success';
+    } catch (error) {
+        console.log(error);
+        return 'err';
+    }
+};
+export const copyPlaylist = async (id: number) => {
+    try {
+
+        const getQuery = `
+            SELECT name, description
+            FROM playlists
+            WHERE id = $1;
+        `;
+        const getResult = await (conn as Pool).query(getQuery, [id]);
+
+        if (getResult.rows.length === 0) {
+            return 'err'
+        }
+
+        const { name, description } = getResult.rows[0];
+
+        const query = `
+            INSERT INTO playlists (name, description)
+            VALUES ($1, $2) RETURNING id;
+        `;
+
+        const insertResult = await (conn as Pool).query(query, [`Copy of ${name}`, description]);
+
+        const newPlaylistId = insertResult.rows[0].id;
+
+        const copySongsQuery = `
+            INSERT INTO playlistssong (playlistid, songid)
+            SELECT $1, songid
+            FROM playlistssong
+            WHERE playlistid = $2;
+        `;
+        await (conn as Pool).query(copySongsQuery, [newPlaylistId, id]);
+
+
+        return newPlaylistId;
+    } catch (error) {
+        console.log(error);
+        return 'err';
+    }
+};
 export const deletePlaylist = async (id: number) => {
     try {
 

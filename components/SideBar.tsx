@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react'
 import AddPlaylistPopup from './AddPlaylistPopup'
 import { ReactSortable } from 'react-sortablejs'
 import { toast } from 'react-toastify'
+import Loading from './Loading'
 
 const SideBar = () => {
 
@@ -33,24 +34,15 @@ const SideBar = () => {
     }, [])
 
 
-    const handleOrderChange = async (playlists: Playlist[]) => {
+    const handleOrderChange = async (list: Playlist[]) => {
         try {
 
-            const interval = setTimeout(async () => {
-                const changeOrder = await changePlaylistOrder(playlists as Playlist[])
-
-            }, 1000)
-  
-            return () => clearTimeout(interval);
+            const changeOrder = await changePlaylistOrder(list as Playlist[])
 
         } catch (error) {
             console.log(error)
             toast.error('Something went wrong with changing the order of playlists')
         }
-    }
-
-    if (!playlists) {
-        return
     }
 
 
@@ -60,9 +52,12 @@ const SideBar = () => {
             <div className='h-screen sticky top-0 left-0 w-[350px] min-w-[350px] max-w-[350px] p-4'>
                 <div className='min-h-[calc(100vh-32px)] max-h-[calc(100vh-32px)] h-[calc(100vh-32px)] bg-dark-50 rounded-lg p-5 flex flex-col '>
                     <p className='text-center text-3xl font-bold mb-6'>RADIO</p>
-                    <ReactSortable list={playlists} setList={(newState) => {
+                    {!playlists && <div className='w-full flex justify-center'>
+                        <Loading />
+                    </div>}
+                    {playlists && <ReactSortable list={playlists} setList={(newState) => {
                             setPlaylists(newState)
-                            handleOrderChange(playlists)
+                            handleOrderChange(newState)
                         }}>
                         {playlists?.map(item => (
                             <Link href={`/${item.id}`} key={item.id} className={`flex gap-2 p-2 my-1 items-center w-full hover:bg-dark-200/50 hover:cursor-pointer rounded-md ${path === `/${item.id}` && 'bg-dark-200/50'}`}>
@@ -81,7 +76,7 @@ const SideBar = () => {
                                 </div>
                             </Link>
                         ))}
-                    </ReactSortable>
+                    </ReactSortable>}
 
 
                     <div className='flex-1'>
