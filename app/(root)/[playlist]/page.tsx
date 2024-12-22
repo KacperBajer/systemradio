@@ -13,6 +13,7 @@ import { IoSettingsSharp } from "react-icons/io5";
 import PlaylistSettings from '@/components/PlaylistSettings';
 import Loading from '@/components/Loading';
 import TooltipButton from '@/components/TooltipButton';
+import AddSongToPlaylist from '@/components/AddSongToPlaylist';
 
 
 const page = () => {
@@ -20,6 +21,7 @@ const page = () => {
   const [data, setData] = useState<Playlist | null>(null)
   const [checked, setChecked] = useState<number[]>([])
   const [showPlaylistSettings, setShowPlaylistSettings] = useState(false)
+  const [showAddPlaylist, setShowAddPlaylist] = useState(false)
   const { playlist } = useParams()
 
   const fetchData = async () => {
@@ -61,6 +63,7 @@ const page = () => {
 
   return (
     <>
+      {showAddPlaylist && <AddSongToPlaylist handleClose={() => setShowAddPlaylist(false)} />}
       {showPlaylistSettings && <PlaylistSettings data={data} handleClose={() => setShowPlaylistSettings(false)} />}
       <div className='flex-1 flex flex-col p-4'>
         <div className='bg-dark-50 p-4 rounded-lg flex-1'>
@@ -84,7 +87,7 @@ const page = () => {
             <div className='flex gap-2'>
               <TooltipButton bgColor='bg-dark-200/50' text='Delete selected songs' disabled={data.isProtected || checked.length === 0} customClass={`${(data.isProtected || checked.length < 1) && 'opacity-60'}`}><FaTrash className='text-red-700' /></TooltipButton>
               <TooltipButton bgColor='bg-dark-200/50' text='Add selected songs to queue' onClick={handleAddToQueue} disabled={checked.length === 0} customClass={`${checked.length < 1 && 'opacity-60'}`}><MdAddToQueue className='text-green-500' /></TooltipButton>
-              <TooltipButton bgColor='bg-dark-200/50' text='Add selected songs to another playlist' disabled={checked.length === 0} customClass={`${checked.length < 1 && 'opacity-60'}`}><RiPlayListAddLine className='text-blue-600' /></TooltipButton>
+              <TooltipButton bgColor='bg-dark-200/50' text='Add selected songs to another playlist' onClick={() => setShowAddPlaylist(true)} disabled={checked.length === 0} customClass={`${checked.length < 1 && 'opacity-60'}`}><RiPlayListAddLine className='text-blue-600' /></TooltipButton>
               <TooltipButton bgColor='bg-dark-200/50' text='Playlist settings' onClick={() => setShowPlaylistSettings(true)}><IoSettingsSharp /></TooltipButton>
             </div>
 

@@ -3,7 +3,7 @@ import { Roboto_Mono } from 'next/font/google'
 import "./globals.css";
 import { ToastContainer } from "react-toastify";
 
-export const roboto_mono = Roboto_Mono({
+const roboto_mono = Roboto_Mono({
   subsets: ['latin'],
   display: 'swap',
 })

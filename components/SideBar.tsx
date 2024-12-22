@@ -28,7 +28,7 @@ const SideBar = () => {
     useEffect(() => {
         const intervalId = setInterval(() => {
             getData();
-        }, 30000);
+        }, 10000);
 
         return () => clearInterval(intervalId);
     }, [])
