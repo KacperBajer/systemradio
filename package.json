@@ -12,6 +12,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@headlessui/react": "^2.2.0",
+    "nanoid": "^5.0.9",
     "next": "15.1.2",
     "pg": "^8.13.1",
     "react": "^19.0.0",
@@ -20,7 +21,8 @@
     "react-sortablejs": "^6.1.4",
     "react-spinners": "^0.15.0",
     "react-toastify": "^11.0.2",
-    "sortablejs": "^1.15.6"
+    "sortablejs": "^1.15.6",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@types/node": "^20",

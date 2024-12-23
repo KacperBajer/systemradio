@@ -68,7 +68,7 @@ const ChangePlayerPopup = ({handleClose}: Props) => {
 
     return (
         <div className='fixed top-0 left-0 z-50 w-full h-screen flex justify-center items-center bg-dark-50/40'>
-            <div ref={boxRef} className='p-4 w-[350px] bg-dark-100 rounded-md border-2 border-dark-100 text-sm text-gray-200'>
+            <div ref={boxRef} className='p-4 min-w-[350px] max-w-[500px] w-fit bg-dark-100 rounded-md border-2 border-dark-100 text-sm text-gray-200'>
                 <p className='text-center text-3xl font-bold mb-6'>Playing device</p>
                 <div className='flex flex-wrap gap-2 justify-center'>
                     {data?.map((item, index) => (
