@@ -7,7 +7,7 @@ import { CurrentSong, Playlist, Song } from "./types";
 export const getSong = async () => {
     try {
         const query = `
-            SELECT s.id, s.title, s.artist, s.src, s.duration, ps.isplaying, ps.currenttime
+            SELECT s.id, s.title, s.artist, s.src, s.duration, ps.isplaying, ps.currenttime, ps.playingdevice
             FROM playback ps
             JOIN songs s ON ps.id = s.id
             LIMIT 1;
@@ -16,8 +16,8 @@ export const getSong = async () => {
         const result = await (conn as Pool).query(
             query, []
         );
-        
-        if(result.rows.length < 1) {
+
+        if (result.rows.length < 1) {
             return 'err'
         }
 
@@ -29,10 +29,87 @@ export const getSong = async () => {
                 title: result.rows[0].title,
                 duration: result.rows[0].duration
             },
-            ip: '::1',
+            ip: result.rows[0].playingdevice,
             currenttime: result.rows[0].currenttime,
             isplaying: result.rows[0].isplaying,
         } as CurrentSong
+    } catch (error) {
+        console.log(error)
+        return 'err'
+    }
+}
+
+export const setOnlineDevice = async (ip: string) => {
+    try {
+        const query = `
+            INSERT INTO onlinedevices (ip, date)
+            VALUES ($1, NOW())
+            ON CONFLICT (ip)
+            DO UPDATE SET date = NOW();
+        `;
+        const result = await (conn as Pool).query(
+            query, [ip]
+        );
+        return 'success'
+    } catch (error) {
+        console.log(error)
+        return 'err'
+    }
+}
+
+export const getOnlineDevices = async () => {
+    try {
+        const query = `
+            SELECT ip, date
+            FROM onlinedevices
+            WHERE date >= NOW() - INTERVAL '15 seconds';
+        `;
+
+        const result = await (conn as Pool).query(
+            query, []
+        );
+        const onlineDevices = result.rows;
+
+        const queryPlaybackDevice = `
+            SELECT playingdevice
+            FROM playback
+            LIMIT 1; -- Pobranie tylko jednego wiersza
+        `;
+  
+      const playbackDeviceResult = await (conn as Pool).query(queryPlaybackDevice, []);
+      const playbackDevice = playbackDeviceResult.rows[0]?.playingdevice; 
+
+      const onlineIPs = onlineDevices.map(device => device.ip);
+      const missingDevices = playbackDevice && !onlineIPs.includes(playbackDevice)
+        ? [{ ip: playbackDevice, date: null }]
+        : [];
+  
+      const allDevices = [...onlineDevices, ...missingDevices];
+
+        return {
+            devices: allDevices,
+            playingDevice: playbackDevice
+        }
+    } catch (error) {
+        console.log(error)
+        return 'err'
+    }
+}
+export const changePlayingDevice = async (ip: string) => {
+    try {
+        const query = `
+            UPDATE playback
+            SET playingdevice = $1, forced = true
+            WHERE id = (
+                SELECT id
+                FROM playback
+                LIMIT 1
+        )`;
+        
+        const result = await (conn as Pool).query(
+            query, [ip]
+        );
+        return 'success'
     } catch (error) {
         console.log(error)
         return 'err'
@@ -61,7 +138,7 @@ export const getQueue = async () => {
             query, []
         );
 
-        if(result.rows.length < 1) {
+        if (result.rows.length < 1) {
             return null
         }
 
@@ -99,7 +176,7 @@ export const skipSong = async () => {
         `
         const result = await (conn as Pool).query(
             query, []
-        ); 
+        );
 
         const updateQuery = `
             WITH updated_queue AS (
@@ -114,9 +191,9 @@ export const skipSong = async () => {
 
         const update = await (conn as Pool).query(
             updateQuery, []
-        ); 
+        );
 
-        const song = await getSong() 
+        const song = await getSong()
         return song
     } catch (error) {
         console.log(error)
@@ -227,6 +304,67 @@ export const getAllPlaylists = async () => {
     }
 };
 
+export const getNotProtectedPlaylist = async () => {
+    try {
+        const query = `
+            SELECT * FROM playlists WHERE isprotected = false ORDER BY place ASC;
+        `;
+
+        const result = await (conn as Pool).query(query, []);
+        return result.rows as Playlist[];
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+};
+
+export const addToAnotherPlaylists = async (
+    playlists: string[] | number[],
+    songs: number[]
+) => {
+    try {
+        for (const playlistId of playlists) {
+            for (const songId of songs) {
+                const checkQuery = `
+            SELECT 1 
+            FROM playlistssong 
+            WHERE playlistid = $1 AND songid = $2
+            LIMIT 1;
+          `;
+                const checkResult = await (conn as Pool).query(checkQuery, [playlistId, songId]);
+
+                if (checkResult.rowCount === 0) {
+                    const insertQuery = `
+              INSERT INTO playlistssong (playlistid, songid)
+              VALUES ($1, $2);
+            `;
+                    await (conn as Pool).query(insertQuery, [playlistId, songId]);
+                }
+            }
+        }
+        return 'success'
+    } catch (error) {
+        console.log(error)
+        return 'err'
+    }
+};
+
+export const deleteFromPlaylist = async (playlistId: string | number, songIds: number[]) => {
+    try {
+        const deleteQuery = `
+            DELETE FROM playlistssong
+            WHERE playlistid = $1 AND songid = ANY($2);
+        `;
+
+        const result = await (conn as Pool).query(deleteQuery, [playlistId, songIds]);
+
+        return 'success'
+
+    } catch (error) {
+        console.log(error)
+        return 'err'
+    }
+}
 
 export const updatePlaybackState = async (songId: number | null, currentTime: number, isPlaying: boolean) => {
     try {
@@ -238,16 +376,22 @@ export const updatePlaybackState = async (songId: number | null, currentTime: nu
             FROM playback
             WHERE sysnum = 1;
         `;
-        const result = await (conn as Pool).query(forcedCheckQuery);
-    
-        
-        if (result.rows.length > 0 && result.rows[0].forced === true && (result.rows[0].id !== songId || result.rows[0].isplaying !== isPlaying) ) {
+        const result = await (conn as Pool).query(forcedCheckQuery, []);
+
+
+        if (result.rows.length > 0 && result.rows[0].forced === true && (result.rows[0].id !== songId || result.rows[0].isplaying !== isPlaying)) {
             const song = await getSong()
-            return song
+            return {
+                action: 'update',
+                data: song
+            }
         }
 
         if (songId === null) {
-           return 'success'
+            return {
+                action: 'error',
+                data: ''
+            }
         } else {
             query = `
                 UPDATE playback
@@ -258,10 +402,19 @@ export const updatePlaybackState = async (songId: number | null, currentTime: nu
         }
 
         await (conn as Pool).query(query, params);
-        return 'success'
+        
+        const queryPlayingDevice = `SELECT playingdevice FROM playback LIMIT 1`
+        const resultPlayingDevice = await (conn as Pool).query(queryPlayingDevice, []);
+        return {
+            action: 'success',
+            data: resultPlayingDevice.rows[0].playingdevice
+        }
     } catch (error) {
         console.log(error)
-        return 'err'
+        return {
+            action: 'error',
+            data: ''
+        }
     }
 }
 
@@ -272,8 +425,8 @@ export const handlePlayPlayback = async (isPlaying: boolean) => {
             SET isplaying = $1, forced = true
             WHERE sysnum = 1;
         `;
-      await (conn as Pool).query(query, [!isPlaying]);
-      return 'success'
+        await (conn as Pool).query(query, [!isPlaying]);
+        return 'success'
     } catch (error) {
         console.log(error)
         return 'err'
@@ -356,13 +509,13 @@ export const deletePlaylist = async (id: number) => {
         SELECT isprotected FROM playlists WHERE id = $1
         `;
         const checkResult = await (conn as Pool).query(checkQuery, [id]);
-    
+
         if (checkResult.rowCount === 0) {
             return 'Playlist not found';
         }
-    
+
         const isProtected = checkResult.rows[0].isprotected;
-    
+
         if (isProtected) {
             return 'Playlist is protected and cannot be deleted';
         }
@@ -391,7 +544,7 @@ export const changePlaylistOrder = async (playlists: Playlist[]) => {
             SET place = $1
             WHERE id = $2
         `
-        for(let i = 0; i < playlists.length; i++) {
+        for (let i = 0; i < playlists.length; i++) {
             const playlist = playlists[i]
             const result = await (conn as Pool).query(query, [i + 1, playlist.id]);
         }

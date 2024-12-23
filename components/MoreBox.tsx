@@ -1,15 +1,22 @@
 'use client'
-import { addToQueue } from '@/lib/music';
-import React, { useEffect, useRef } from 'react'
+import { addToQueue, deleteFromPlaylist } from '@/lib/music';
+import { Playlist } from '@/lib/types';
+import React, { useEffect, useRef, useState } from 'react'
+import { FaTrash } from 'react-icons/fa';
+import { MdAddToQueue } from 'react-icons/md';
+import { RiPlayListAddLine } from 'react-icons/ri';
 import { toast } from 'react-toastify';
 
 type Props = {
     position: { top: number; left: number }
     handleClose: () => void
     id: number
+    addToAnotherPlaylists: (e: number | boolean) => void
+    playlist: Playlist
+    setChecked: (e: number[]) => void
 }
 
-const MoreBox = ({position, handleClose, id}: Props) => {
+const MoreBox = ({ position, handleClose, id, addToAnotherPlaylists, playlist, setChecked }: Props) => {
 
     const boxRef = useRef<HTMLDivElement | null>(null)
 
@@ -30,7 +37,7 @@ const MoreBox = ({position, handleClose, id}: Props) => {
     const handleAddToQueue = async () => {
         try {
             const add = await addToQueue(id)
-            if(add === 'err') {
+            if (add === 'err') {
                 toast.error('Failed to add to queue')
                 return
             }
@@ -42,21 +49,43 @@ const MoreBox = ({position, handleClose, id}: Props) => {
         }
     }
 
-  return (
-    <div className='fixed top-0 left-0 z-40 w-full h-screen'>
-        <div ref={boxRef} style={{top: position.top, left: position.left}} className='absolute p-1 bg-dark-50 rounded-md border-2 border-dark-100 w-fit text-sm text-gray-200'>
-            <button onClick={handleAddToQueue} className='px-3 py-1.5 w-full text-left hover:cursor-pointer hover:bg-dark-100/70 rounded-md hover:text-white transition-all duration-200'>
-                <p>Add to queue</p>
-            </button>
-            <div className='px-3 py-1.5 w-full text-left hover:cursor-pointer hover:bg-dark-100/70 rounded-md hover:text-white transition-all duration-200'>
-                <p>Delete from this playlist</p>
-            </div>
-            <div className='px-3 py-1.5 w-full text-left hover:cursor-pointer hover:bg-dark-100/70 rounded-md hover:text-white transition-all duration-200'>
-                <p>Add to another playlist</p>
+    const handleDeleteFromPlaylist = async () => {
+        try {
+            const add = await deleteFromPlaylist(playlist.id, [id])
+            if (add === 'err') {
+                toast.error('Failed to delete songs from playlist')
+                return
+            }
+            toast.success('Songs removed from playlist')
+            setChecked([])
+            handleClose()
+        } catch (error) {
+            console.log(error)
+            toast.error('Failed to delete songs from playlist')
+        }
+    }
+
+    return (
+        <div className='fixed top-0 left-0 z-40 w-full h-screen'>
+            <div ref={boxRef} style={{ top: position.top, left: position.left }} className='absolute p-1 bg-dark-50 rounded-md border-2 flex flex-col gap-0.5 border-dark-100 w-fit text-xs text-gray-200'>
+                <button onClick={handleAddToQueue} className='px-3 py-1.5 w-full text-left hover:cursor-pointer hover:bg-dark-100/70 rounded-md hover:text-white transition-all duration-200 flex gap-2 items-center'>
+                    <MdAddToQueue className='text-green-500 text-lg' />
+                    <p>Add to queue</p>
+                </button>
+                {!playlist.isProtected && <button onClick={handleDeleteFromPlaylist} className={`px-3 py-1.5 w-full text-left hover:bg-dark-100/70 hover:cursor-pointer rounded-md hover:text-white transition-all duration-200 flex items-center gap-2`}>
+                    <FaTrash className='text-red-700 text-sm mx-0.5' />
+                    <p>Delete from this playlist</p>
+                </button>}
+                <button onClick={() => {
+                    addToAnotherPlaylists(id)
+                    handleClose()
+                }} className='px-3 py-1.5 w-full text-left hover:cursor-pointer hover:bg-dark-100/70 rounded-md hover:text-white transition-all duration-200 flex gap-2 items-center'>
+                    <RiPlayListAddLine className='text-blue-600 text-lg' />
+                    <p>Add to another playlist</p>
+                </button>
             </div>
         </div>
-    </div>
-  )
+    )
 }
 
 export default MoreBox

@@ -1,6 +1,6 @@
 'use client'
 import { formatTime } from '@/lib/func';
-import { getSong, handlePlayPlayback, skipSong, updatePlaybackState } from '@/lib/music';
+import { getSong, handlePlayPlayback, setOnlineDevice, skipSong, updatePlaybackState } from '@/lib/music';
 import { Song } from '@/lib/types';
 import React, { useEffect, useRef, useState } from 'react'
 import { IoIosSkipBackward } from "react-icons/io";
@@ -10,6 +10,8 @@ import { IoPlayCircleSharp } from "react-icons/io5";
 import SongCard from './SongCard';
 import { toast } from 'react-toastify';
 import { getIPAddress } from '@/lib/getIp';
+import { FaHeadphonesAlt } from "react-icons/fa";
+import ChangePlayerPopup from './ChangePlayerPopup';
 
 const MusicPlayer = () => {
 
@@ -21,17 +23,18 @@ const MusicPlayer = () => {
     const [currentTime, setCurrentTime] = useState<number>(0)
     const [duration, setDuration] = useState<number>(0)
     const [mode, setMode] = useState<'control' | 'playback'>('control')
-
+    const [showChangePlayer, setShowChangePlayer] = useState(false)
 
     // initial fetch
     const fetchSong = async () => {
-        const res = await getSong()
         const ip = await getIPAddress()
-        if(res === 'err') {
+        const res = await getSong()
+        if (res === 'err') {
             toast.error("Something went wrong with fetching data!")
             return
         }
         setMode(ip === res.ip ? 'playback' : 'control')
+        console.log(ip, res.ip, ip === res.ip)
         setDuration(res.song.duration)
         setCurrentTime(res.currenttime)
         setProgress(res.currenttime / res.song.duration * 100)
@@ -57,12 +60,21 @@ const MusicPlayer = () => {
         const update = async () => {
             if (song && audioRef.current) {
                 const res = await updatePlaybackState(song ? song.id : null, Math.round(audioRef.current.currentTime), isPlaying)
-                if (res !== 'err' && res !== 'success') {
-                    setDuration(res.song.duration)
-                    setCurrentTime(res.currenttime)
-                    setProgress(res.currenttime / res.song.duration * 100)
-                    setIsPlaying(res.isplaying)
-                    setSong(res.song)
+                if (res.action === 'update') {
+                    const ip = await getIPAddress()
+                    setMode(ip === res.data.ip ? 'playback' : 'control')
+                    if(ip !== res.data.ip) {
+                        return
+                    }
+                    setDuration(res.data.song.duration)
+                    setCurrentTime(res.data.currenttime)
+                    setProgress(res.data.currenttime / res.data.song.duration * 100)
+                    setIsPlaying(res.data.isplaying)
+                    setSong(res.data.song)
+                }
+                if(res.action === 'success') {
+                    const ip = await getIPAddress()
+                    setMode(ip === res.data ? 'playback' : 'control')
                 }
             }
         }
@@ -156,53 +168,69 @@ const MusicPlayer = () => {
         }
     }
 
+    useEffect(() => {
+        const handleOnline = async () => {
+            const ip = await getIPAddress()
+            const res = await setOnlineDevice(ip as string)
+        }
+        const interval = setInterval(handleOnline, 10000);
+
+        return () => clearInterval(interval);
+    }, [])
+
     if (!song) {
         return null;
     }
 
     return (
-        <div className='sticky bottom-0 px-4 pb-4'>
-            <div className='flex items-center bg-dark-50 rounded-lg p-4'>
-                {mode === 'playback' && <audio
-                    ref={audioRef}
-                    onTimeUpdate={handleTimeUpdate}
-                    onLoadedMetadata={handleLoadedMetadata}
-                    onEnded={handleSongEnd}
-                />
-                }
-                <SongCard
-                    song={song}
-                />
+        <>
+            {showChangePlayer && <ChangePlayerPopup handleClose={() => setShowChangePlayer(false)} />}
+            <div className='sticky bottom-0 px-4 pb-4'>
+                <div className='flex items-center bg-dark-50 rounded-lg p-4'>
+                    {mode === 'playback' && <audio
+                        ref={audioRef}
+                        onTimeUpdate={handleTimeUpdate}
+                        onLoadedMetadata={handleLoadedMetadata}
+                        onEnded={handleSongEnd}
+                    />
+                    }
+                    <SongCard
+                        song={song}
+                    />
 
-                <div className='flex flex-col items-center'>
-                    <div className='flex mb-1 gap-3 items-center'>
-                        <button className='hover:cursor-pointer group'>
-                            <IoIosSkipBackward className='text-2xl text-gray-200 group-hover:text-white duration-200 transition-all' />
-                        </button>
-                        <button onClick={handlePlayPause} className={`group hover:cursor-pointer`}>
-                            {isPlaying ?
-                                <IoPauseCircle className='text-3xl text-gray-200 group-hover:text-white duration-200 transition-all' /> :
-                                <IoPlayCircleSharp className='text-3xl text-gray-200 group-hover:text-white duration-200 transition-all' />
-                            }
-                        </button>
-                        <button onClick={handlePlayNext} className='hover:cursor-pointer group'>
-                            <IoIosSkipForward className='text-2xl text-gray-200 group-hover:text-white duration-200 transition-all' />
-                        </button>
-                    </div>
-                    <div className='flex gap-2 items-center'>
-                        <p className='text-sm text-gray-300'>{formatTime(currentTime)}</p>
-                        <div ref={progressRef} onClick={handleSeek} className={`relative w-[350px] ${mode === 'playback' && 'hover:cursor-pointer'}`}>
-                            <div className='w-full h-1 rounded-full bg-dark-200'></div>
-                            <div style={{ width: `${progress}%` }} className='absolute rounded-lg top-0 left-0 h-1 bg-white'></div>
+                    <div className='flex flex-col items-center'>
+                        <div className='flex mb-1 gap-3 items-center'>
+                            <button className='hover:cursor-pointer group'>
+                                <IoIosSkipBackward className='text-2xl text-gray-200 group-hover:text-white duration-200 transition-all' />
+                            </button>
+                            <button onClick={handlePlayPause} className={`group hover:cursor-pointer`}>
+                                {isPlaying ?
+                                    <IoPauseCircle className='text-3xl text-gray-200 group-hover:text-white duration-200 transition-all' /> :
+                                    <IoPlayCircleSharp className='text-3xl text-gray-200 group-hover:text-white duration-200 transition-all' />
+                                }
+                            </button>
+                            <button onClick={handlePlayNext} className='hover:cursor-pointer group'>
+                                <IoIosSkipForward className='text-2xl text-gray-200 group-hover:text-white duration-200 transition-all' />
+                            </button>
                         </div>
-                        <p className='text-sm text-gray-300'>{formatTime(duration)}</p>
+                        <div className='flex gap-2 items-center'>
+                            <p className='text-sm text-gray-300'>{formatTime(currentTime)}</p>
+                            <div ref={progressRef} onClick={handleSeek} className={`relative w-[350px] ${mode === 'playback' && 'hover:cursor-pointer'}`}>
+                                <div className='w-full h-1 rounded-full bg-dark-200'></div>
+                                <div style={{ width: `${progress}%` }} className='absolute rounded-lg top-0 left-0 h-1 bg-white'></div>
+                            </div>
+                            <p className='text-sm text-gray-300'>{formatTime(duration)}</p>
+                        </div>
                     </div>
-                </div>
-                <div className='flex-1'>
-
+                    <div className='flex-1 flex justify-end items-center'>
+                        <button onClick={() => setShowChangePlayer(true)} className='mr-4'>
+                            <FaHeadphonesAlt className='text-2xl text-gray-400' />
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
+
     )
 }
 

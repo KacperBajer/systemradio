@@ -10,10 +10,8 @@ const Tooltip = ({text}: Props) => {
     const [show, setShow] = useState(false)
 
     useEffect(() => {
-        console.log('f')
         const timer = setTimeout(() => {
             setShow(true)
-            console.log('df')
         }, 1000);
 
         return () => clearTimeout(timer)

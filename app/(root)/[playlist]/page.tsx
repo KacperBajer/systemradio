@@ -1,6 +1,6 @@
 'use client'
 import PlaylistTable from '@/components/PlaylistTable';
-import { addToQueue, getPlaylist } from '@/lib/music';
+import { addToQueue, deleteFromPlaylist, getPlaylist } from '@/lib/music';
 import { Playlist, Song } from '@/lib/types';
 import Image from 'next/image';
 import { redirect, useParams } from 'next/navigation';
@@ -61,9 +61,25 @@ const page = () => {
     )
   }
 
+  const handleDeleteFromPlaylist = async () => {
+    try {
+      const add = await deleteFromPlaylist(data.id, checked)
+      if (add === 'err') {
+        toast.error('Failed to delete songs from playlist')
+        return
+      }
+      toast.success('Songs removed from playlist')
+      fetchData()
+      setChecked([])
+    } catch (error) {
+      console.log(error)
+      toast.error('Failed to delete songs from playlist')
+    }
+  }
+
   return (
     <>
-      {showAddPlaylist && <AddSongToPlaylist handleClose={() => setShowAddPlaylist(false)} />}
+      {showAddPlaylist && <AddSongToPlaylist songs={checked} handleClose={() => setShowAddPlaylist(false)} />}
       {showPlaylistSettings && <PlaylistSettings data={data} handleClose={() => setShowPlaylistSettings(false)} />}
       <div className='flex-1 flex flex-col p-4'>
         <div className='bg-dark-50 p-4 rounded-lg flex-1'>
@@ -85,7 +101,7 @@ const page = () => {
             </div>
 
             <div className='flex gap-2'>
-              <TooltipButton bgColor='bg-dark-200/50' text='Delete selected songs' disabled={data.isProtected || checked.length === 0} customClass={`${(data.isProtected || checked.length < 1) && 'opacity-60'}`}><FaTrash className='text-red-700' /></TooltipButton>
+              <TooltipButton onClick={handleDeleteFromPlaylist} bgColor='bg-dark-200/50' text='Delete selected songs' disabled={data.isProtected || checked.length === 0} customClass={`${(data.isProtected || checked.length < 1) && 'opacity-60'}`}><FaTrash className='text-red-700' /></TooltipButton>
               <TooltipButton bgColor='bg-dark-200/50' text='Add selected songs to queue' onClick={handleAddToQueue} disabled={checked.length === 0} customClass={`${checked.length < 1 && 'opacity-60'}`}><MdAddToQueue className='text-green-500' /></TooltipButton>
               <TooltipButton bgColor='bg-dark-200/50' text='Add selected songs to another playlist' onClick={() => setShowAddPlaylist(true)} disabled={checked.length === 0} customClass={`${checked.length < 1 && 'opacity-60'}`}><RiPlayListAddLine className='text-blue-600' /></TooltipButton>
               <TooltipButton bgColor='bg-dark-200/50' text='Playlist settings' onClick={() => setShowPlaylistSettings(true)}><IoSettingsSharp /></TooltipButton>
@@ -93,7 +109,7 @@ const page = () => {
 
           </section>
 
-          {data && <PlaylistTable checked={checked} setChecked={setChecked} songs={data.songs} />}
+          {data && <PlaylistTable fetchData={fetchData} checked={checked} setChecked={setChecked} data={data} />}
 
         </div>
       </div>
