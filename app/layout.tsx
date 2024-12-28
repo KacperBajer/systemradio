@@ -21,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${roboto_mono.className} antialiased`}
+        className={`${roboto_mono.className} antialiased overflow-hidden`}
       >
         <ToastContainer
           position="top-center"

@@ -1,6 +1,6 @@
 'use client'
 import { formatTime } from '@/lib/func';
-import { getSong, handlePlayPlayback, setOnlineDevice, skipSong, updatePlaybackState } from '@/lib/music';
+import { changeSongProgress, getSong, handlePlayPlayback, playPrevSong, setOnlineDevice, skipSong, updatePlaybackState } from '@/lib/music';
 import { Song } from '@/lib/types';
 import React, { useEffect, useRef, useState } from 'react'
 import { IoIosSkipBackward } from "react-icons/io";
@@ -11,6 +11,10 @@ import SongCard from './SongCard';
 import { toast } from 'react-toastify';
 import { getIPAddress } from '@/lib/getIp';
 import { FaHeadphonesAlt } from "react-icons/fa";
+import { FaListUl } from "react-icons/fa";
+import TooltipButton from './TooltipButton';
+import { usePlayer } from '@/context/PlayerContext';
+import ChangePlayingDevicePopup from './ChangePlayingDevicePopup';
 import ChangePlayerPopup from './ChangePlayerPopup';
 
 const MusicPlayer = () => {
@@ -24,17 +28,20 @@ const MusicPlayer = () => {
     const [duration, setDuration] = useState<number>(0)
     const [mode, setMode] = useState<'control' | 'playback'>('control')
     const [showChangePlayer, setShowChangePlayer] = useState(false)
+    const [showPlayerPopup, setShowPlayerPopup] = useState(false)
+    const {player} = usePlayer()
+    const playerRef = useRef(player)
+    playerRef.current = player
 
     // initial fetch
     const fetchSong = async () => {
         const ip = await getIPAddress()
-        const res = await getSong()
+        const res = await getSong(playerRef.current)
         if (res === 'err') {
             toast.error("Something went wrong with fetching data!")
             return
         }
         setMode(ip === res.ip ? 'playback' : 'control')
-        console.log(ip, res.ip, ip === res.ip)
         setDuration(res.song.duration)
         setCurrentTime(res.currenttime)
         setProgress(res.currenttime / res.song.duration * 100)
@@ -59,7 +66,7 @@ const MusicPlayer = () => {
     useEffect(() => {
         const update = async () => {
             if (song && audioRef.current) {
-                const res = await updatePlaybackState(song ? song.id : null, Math.round(audioRef.current.currentTime), isPlaying)
+                const res = await updatePlaybackState(song ? song.id : null, Math.round(audioRef.current.currentTime), isPlaying, playerRef.current)
                 if (res.action === 'update') {
                     const ip = await getIPAddress()
                     setMode(ip === res.data.ip ? 'playback' : 'control')
@@ -89,7 +96,7 @@ const MusicPlayer = () => {
 
     // play/pause
     const handlePlayPause = async () => {
-        const res = await handlePlayPlayback(isPlaying)
+        const res = await handlePlayPlayback(isPlaying, player)
         console.log(res)
     };
 
@@ -105,35 +112,41 @@ const MusicPlayer = () => {
     // play next song
     const handlePlayNext = async () => {
         try {
-            const res = await skipSong()
+            const res = await skipSong(player)
             if (res === 'err') {
                 toast.error('Could not skip the song')
                 return
             }
-            setDuration(res.song.duration)
-            setCurrentTime(res.currenttime)
-            setProgress(res.currenttime / res.song.duration * 100)
-            setIsPlaying(res.isplaying)
-            setSong(res.song)
         } catch (error) {
             toast.error('Could not skip the song')
+        }
+    }
+    const handlePlayPrev = async () => {
+        try {
+            const res = await playPrevSong(player)
+            if (res === 'err') {
+                toast.error('Could not play the previous song')
+                return
+            }
+            if(res === 'No songs') {
+                toast.error('No song had been played before')
+                return
+            }
+            toast.success('Returned to the previous song')
+        } catch (error) {
+            toast.error('Could not play the previous song')
         }
     }
 
     // play next song when current end
     const handleSongEnd = async () => {
         try {
-            const res = await skipSong();
+            const res = await skipSong(player);
             if (res === 'err') {
                 toast.error('Could not play the next song');
                 setIsPlaying(false);
                 return;
             }
-            setDuration(res.song.duration)
-            setCurrentTime(res.currenttime)
-            setProgress(res.currenttime / res.song.duration * 100)
-            setIsPlaying(res.isplaying)
-            setSong(res.song)
         } catch (error) {
             console.log(error);
             toast.error('Error playing the next song');
@@ -156,7 +169,7 @@ const MusicPlayer = () => {
         }
     }, [song])
 
-    const handleSeek = (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    const handleSeek = async (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         if (progressRef.current && audioRef.current) {
             const rect = progressRef.current.getBoundingClientRect();
             const clickX = event.clientX - rect.left;
@@ -165,6 +178,7 @@ const MusicPlayer = () => {
 
             audioRef.current.currentTime = newTime;
             setProgress(newProgress);
+            await changeSongProgress(player, Math.round(newTime))
         }
     }
 
@@ -178,15 +192,12 @@ const MusicPlayer = () => {
         return () => clearInterval(interval);
     }, [])
 
-    if (!song) {
-        return null;
-    }
-
     return (
         <>
-            {showChangePlayer && <ChangePlayerPopup handleClose={() => setShowChangePlayer(false)} />}
+            {showChangePlayer && <ChangePlayingDevicePopup handleClose={() => setShowChangePlayer(false)} />}
+            {showPlayerPopup && <ChangePlayerPopup handleClose={() => setShowPlayerPopup(false)} />}
             <div className='sticky bottom-0 px-4 pb-4'>
-                <div className='flex items-center bg-dark-50 rounded-lg p-4'>
+                <div className='flex items-center bg-dark-50 rounded-lg p-4 min-h-[86px]'>
                     {mode === 'playback' && <audio
                         ref={audioRef}
                         onTimeUpdate={handleTimeUpdate}
@@ -194,13 +205,13 @@ const MusicPlayer = () => {
                         onEnded={handleSongEnd}
                     />
                     }
-                    <SongCard
+                    {song && <><SongCard
                         song={song}
                     />
 
-                    <div className='flex flex-col items-center'>
+                    <div className='flex flex-col items-center mx-5'>
                         <div className='flex mb-1 gap-3 items-center'>
-                            <button className='hover:cursor-pointer group'>
+                            <button onClick={handlePlayPrev} className='hover:cursor-pointer group'>
                                 <IoIosSkipBackward className='text-2xl text-gray-200 group-hover:text-white duration-200 transition-all' />
                             </button>
                             <button onClick={handlePlayPause} className={`group hover:cursor-pointer`}>
@@ -223,10 +234,13 @@ const MusicPlayer = () => {
                         </div>
                     </div>
                     <div className='flex-1 flex justify-end items-center'>
-                        <button onClick={() => setShowChangePlayer(true)} className='mr-4'>
-                            <FaHeadphonesAlt className='text-2xl text-gray-400' />
-                        </button>
-                    </div>
+                        <TooltipButton bgColor='bg-dark-200/50' text='Change player' customClass='mr-2' onClick={() => setShowPlayerPopup(true)}>
+                            <FaListUl />
+                        </TooltipButton>
+                        <TooltipButton bgColor='bg-dark-200/50' text='Change playing device' onClick={() => setShowChangePlayer(true)}>
+                            <FaHeadphonesAlt />
+                        </TooltipButton>
+                    </div></>}
                 </div>
             </div>
         </>

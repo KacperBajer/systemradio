@@ -9,9 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.15.8",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@headlessui/react": "^2.2.0",
+    "bcrypt": "^5.1.1",
     "nanoid": "^5.0.9",
     "next": "15.1.2",
     "pg": "^8.13.1",
@@ -22,9 +24,11 @@
     "react-spinners": "^0.15.0",
     "react-toastify": "^11.0.2",
     "sortablejs": "^1.15.6",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "ytdl-core": "npm:@distube/ytdl-core@^4.15.8"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/node": "^20",
     "@types/pg": "^8.11.10",
     "@types/react": "^19",

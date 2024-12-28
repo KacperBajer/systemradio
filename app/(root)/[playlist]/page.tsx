@@ -14,6 +14,7 @@ import PlaylistSettings from '@/components/PlaylistSettings';
 import Loading from '@/components/Loading';
 import TooltipButton from '@/components/TooltipButton';
 import AddSongToPlaylist from '@/components/AddSongToPlaylist';
+import { usePlayer } from '@/context/PlayerContext';
 
 
 const page = () => {
@@ -23,6 +24,7 @@ const page = () => {
   const [showPlaylistSettings, setShowPlaylistSettings] = useState(false)
   const [showAddPlaylist, setShowAddPlaylist] = useState(false)
   const { playlist } = useParams()
+  const {player} = usePlayer()
 
   const fetchData = async () => {
     const res = await getPlaylist(playlist as string)
@@ -39,7 +41,7 @@ const page = () => {
 
   const handleAddToQueue = async () => {
     try {
-      const add = await addToQueue(checked)
+      const add = await addToQueue(checked, player)
       if (add === 'err') {
         toast.error('Failed to add to queue')
         return
@@ -82,7 +84,7 @@ const page = () => {
       {showAddPlaylist && <AddSongToPlaylist songs={checked} handleClose={() => setShowAddPlaylist(false)} />}
       {showPlaylistSettings && <PlaylistSettings data={data} handleClose={() => setShowPlaylistSettings(false)} />}
       <div className='flex-1 flex flex-col p-4'>
-        <div className='bg-dark-50 p-4 rounded-lg flex-1'>
+        <div className='bg-dark-50 p-4 rounded-lg flex-1 flex flex-col max-h-[calc(100vh-134px)]'>
 
           <section className='pb-8 pt-4 flex justify-between items-end'>
             <div className='flex gap-4 items-center'>
@@ -109,7 +111,9 @@ const page = () => {
 
           </section>
 
-          {data && <PlaylistTable fetchData={fetchData} checked={checked} setChecked={setChecked} data={data} />}
+          <div className='overflow-y-auto hideScrollbar'>
+            {data && <PlaylistTable fetchData={fetchData} checked={checked} setChecked={setChecked} data={data} />}
+          </div>
 
         </div>
       </div>

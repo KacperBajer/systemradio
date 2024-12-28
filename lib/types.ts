@@ -18,3 +18,7 @@ export type Playlist = {
   isProtected: boolean
   songs: Song[]
 }
+export type QueueSong = {
+  queue_id: number
+  place: number
+} & Song

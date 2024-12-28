@@ -1,11 +1,13 @@
 'use client'
-import { addToQueue, deleteFromPlaylist } from '@/lib/music';
+import { usePlayer } from '@/context/PlayerContext';
+import { addToQueue, addToQueueFirst, deleteFromPlaylist } from '@/lib/music';
 import { Playlist } from '@/lib/types';
 import React, { useEffect, useRef, useState } from 'react'
 import { FaTrash } from 'react-icons/fa';
 import { MdAddToQueue } from 'react-icons/md';
 import { RiPlayListAddLine } from 'react-icons/ri';
 import { toast } from 'react-toastify';
+import { IoIosPlay } from "react-icons/io";
 
 type Props = {
     position: { top: number; left: number }
@@ -19,6 +21,7 @@ type Props = {
 const MoreBox = ({ position, handleClose, id, addToAnotherPlaylists, playlist, setChecked }: Props) => {
 
     const boxRef = useRef<HTMLDivElement | null>(null)
+    const {player} = usePlayer()
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -36,7 +39,22 @@ const MoreBox = ({ position, handleClose, id, addToAnotherPlaylists, playlist, s
 
     const handleAddToQueue = async () => {
         try {
-            const add = await addToQueue(id)
+            const add = await addToQueue(id, player)
+            if (add === 'err') {
+                toast.error('Failed to add to queue')
+                return
+            }
+            toast.success('Added to queue')
+            handleClose()
+        } catch (error) {
+            console.log(error)
+            toast.error('Failed to add to queue')
+        }
+    }
+
+    const handlePlayNext = async () => {
+        try {
+            const add = await addToQueueFirst(id, player)
             if (add === 'err') {
                 toast.error('Failed to add to queue')
                 return
@@ -71,6 +89,10 @@ const MoreBox = ({ position, handleClose, id, addToAnotherPlaylists, playlist, s
                 <button onClick={handleAddToQueue} className='px-3 py-1.5 w-full text-left hover:cursor-pointer hover:bg-dark-100/70 rounded-md hover:text-white transition-all duration-200 flex gap-2 items-center'>
                     <MdAddToQueue className='text-green-500 text-lg' />
                     <p>Add to queue</p>
+                </button>
+                <button onClick={handlePlayNext} className='px-3 py-1.5 w-full text-left hover:cursor-pointer hover:bg-dark-100/70 rounded-md hover:text-white transition-all duration-200 flex gap-2 items-center'>
+                    <IoIosPlay className='text-violet-600 text-lg' />
+                    <p>Play next</p>
                 </button>
                 {!playlist.isProtected && <button onClick={handleDeleteFromPlaylist} className={`px-3 py-1.5 w-full text-left hover:bg-dark-100/70 hover:cursor-pointer rounded-md hover:text-white transition-all duration-200 flex items-center gap-2`}>
                     <FaTrash className='text-red-700 text-sm mx-0.5' />

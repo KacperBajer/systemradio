@@ -2,19 +2,19 @@
 
 import { Pool } from "pg";
 import conn from "./db";
-import { CurrentSong, Playlist, Song } from "./types";
+import { CurrentSong, Playlist, QueueSong, Song } from "./types";
 
-export const getSong = async () => {
+export const getSong = async (player: number) => {
     try {
         const query = `
             SELECT s.id, s.title, s.artist, s.src, s.duration, ps.isplaying, ps.currenttime, ps.playingdevice
             FROM playback ps
-            JOIN songs s ON ps.id = s.id
-            LIMIT 1;
+            JOIN songs s ON ps.songid = s.id
+            WHERE ps.id = $1;
         `;
 
         const result = await (conn as Pool).query(
-            query, []
+            query, [player]
         );
 
         if (result.rows.length < 1) {
@@ -65,49 +65,43 @@ export const getOnlineDevices = async () => {
             WHERE date >= NOW() - INTERVAL '15 seconds';
         `;
 
-        const result = await (conn as Pool).query(
-            query, []
-        );
+        const result = await (conn as Pool).query(query, []);
         const onlineDevices = result.rows;
 
-        const queryPlaybackDevice = `
-            SELECT playingdevice
-            FROM playback
-            LIMIT 1; -- Pobranie tylko jednego wiersza
+        const queryPlaybackDevices = `
+            SELECT id, playingdevice
+            FROM playback;
         `;
-  
-      const playbackDeviceResult = await (conn as Pool).query(queryPlaybackDevice, []);
-      const playbackDevice = playbackDeviceResult.rows[0]?.playingdevice; 
 
-      const onlineIPs = onlineDevices.map(device => device.ip);
-      const missingDevices = playbackDevice && !onlineIPs.includes(playbackDevice)
-        ? [{ ip: playbackDevice, date: null }]
-        : [];
-  
-      const allDevices = [...onlineDevices, ...missingDevices];
+        const playbackDevicesResult = await (conn as Pool).query(queryPlaybackDevices, []);
+        const playbackDevices = playbackDevicesResult.rows.map(row => ({ id: row.id, playingdevice: row.playingdevice }));
+
+        const onlineIPs = onlineDevices.map(device => device.ip);
+        const missingDevices = playbackDevices
+            .filter(device => !onlineIPs.includes(device.playingdevice))
+            .map(device => ({ ip: device.playingdevice, date: null }));
+
+        const allDevices = [...onlineDevices, ...missingDevices];
 
         return {
             devices: allDevices,
-            playingDevice: playbackDevice
-        }
+            playingDevices: playbackDevices
+        };
     } catch (error) {
-        console.log(error)
-        return 'err'
+        console.log(error);
+        return 'err';
     }
-}
-export const changePlayingDevice = async (ip: string) => {
+};
+
+export const changePlayingDevice = async (ip: string, player: number) => {
     try {
         const query = `
             UPDATE playback
-            SET playingdevice = $1, forced = true
-            WHERE id = (
-                SELECT id
-                FROM playback
-                LIMIT 1
-        )`;
-        
+            SET playingdevice = $1
+            WHERE id = $2`;
+
         const result = await (conn as Pool).query(
-            query, [ip]
+            query, [ip, player]
         );
         return 'success'
     } catch (error) {
@@ -115,10 +109,19 @@ export const changePlayingDevice = async (ip: string) => {
         return 'err'
     }
 }
-export const getQueue = async () => {
+export const getPlayers = async () => {
+    try {
+        const query = `SELECT * FROM playback ORDER BY id ASC`
+        const result = await (conn as Pool).query(query, []);
+        return result.rows
+    } catch (error) {
+        return 'err'
+    }
+}
+export const getQueue = async (player: number) => {
     try {
         const query = `SELECT 
-                s.id AS song_id,
+                s.id AS id,
                 s.title,
                 s.artist,
                 s.src,
@@ -130,12 +133,13 @@ export const getQueue = async () => {
                 songs s 
             ON 
                 q.songid = s.id
+            WHERE q.playerid = $1
             ORDER BY 
                 q.place ASC;
         `
 
         const result = await (conn as Pool).query(
-            query, []
+            query, [player]
         );
 
         if (result.rows.length < 1) {
@@ -149,39 +153,50 @@ export const getQueue = async () => {
     }
 }
 
-export const skipSong = async () => {
+export const skipSong = async (player: number) => {
     try {
+
+        const playingQuery = 'SELECT songid FROM playback WHERE id = $1'
+        const resultPlaying = await (conn as Pool).query(
+            playingQuery, [player]
+        );
+
+        const historyQuery = `INSERT INTO songshistory (songid, playerid, date) VALUES ($1, $2, NOW())`
+        await (conn as Pool).query(historyQuery, [resultPlaying.rows[0].songid, player]);
 
         const insertPlaybackQuery = `
            UPDATE playback
-            SET id = (
+            SET songid = (
                 SELECT songid
                 FROM queue
+                WHERE playerid = $1
                 ORDER BY place ASC
                 LIMIT 1
-            ), currenttime = 0, isplaying = true, forced = true
-            WHERE sysnum = 1;
+            ), currenttime = 0, isplaying = true
+            WHERE id = $1;
         `;
 
-        await (conn as Pool).query(insertPlaybackQuery, []);
+        await (conn as Pool).query(insertPlaybackQuery, [player]);
 
         const query = `
             DELETE FROM queue
             WHERE id = (
                 SELECT id
                 FROM queue
+                WHERE playerid = $1
                 ORDER BY place ASC
                 LIMIT 1
             );
         `
         const result = await (conn as Pool).query(
-            query, []
+            query, [player]
         );
 
         const updateQuery = `
             WITH updated_queue AS (
                 SELECT id, ROW_NUMBER() OVER (ORDER BY place ASC) AS new_place
                 FROM queue
+                WHERE playerid = $1
             )
             UPDATE queue
             SET place = updated_queue.new_place
@@ -190,10 +205,10 @@ export const skipSong = async () => {
         `;
 
         const update = await (conn as Pool).query(
-            updateQuery, []
+            updateQuery, [player]
         );
 
-        const song = await getSong()
+        const song = await getSong(player)
         return song
     } catch (error) {
         console.log(error)
@@ -201,33 +216,26 @@ export const skipSong = async () => {
     }
 }
 
-export const addToQueue = async (songIds: number | number[]) => {
+export const addToQueue = async (songIds: number | number[], player: number) => {
     try {
         const songs = Array.isArray(songIds) ? songIds : [songIds];
 
         const maxPlaceQuery = `
             SELECT COALESCE(MAX(place), 0) AS max_place
-            FROM queue;
+            FROM queue WHERE playerid = $1;
         `;
-        const maxPlaceResult = await (conn as Pool).query(maxPlaceQuery, []);
-        let maxPlace = maxPlaceResult.rows[0]?.max_place || 0;
+        const maxPlaceResult = await (conn as Pool).query(maxPlaceQuery, [player]);
+        let maxPlace = parseInt(maxPlaceResult.rows[0]?.max_place) || 0;
 
         const insertQuery = `
-            INSERT INTO queue (songid, place)
-            VALUES ($1, $2);
+            INSERT INTO queue (songid, place, playerid)
+            VALUES ($1, $2, $3);
         `;
 
         for (const songId of songs) {
             maxPlace += 1;
-            await (conn as Pool).query(insertQuery, [songId, maxPlace]);
+            await (conn as Pool).query(insertQuery, [songId, maxPlace, player]);
         }
-
-        const updatedQueueQuery = `
-            SELECT *
-            FROM queue
-            ORDER BY place ASC;
-        `;
-        const updatedQueue = await (conn as Pool).query(updatedQueueQuery, []);
 
         return 'success';
     } catch (error) {
@@ -235,7 +243,35 @@ export const addToQueue = async (songIds: number | number[]) => {
         return 'err';
     }
 };
+export const addToQueueFirst = async (songIds: number | number[], player: number) => {
+    try {
+        const songs = Array.isArray(songIds) ? songIds : [songIds];
 
+        const shiftQuery = `
+            UPDATE queue
+            SET place = place + $1
+            WHERE playerid = $2;
+        `
+
+        await (conn as Pool).query(shiftQuery, [songs.length, player])
+
+        const insertQuery = `
+            INSERT INTO queue (songid, place, playerid)
+            VALUES ($1, $2, $3);
+        `
+
+        let currentPlace = 1
+        for (const songId of songs) {
+            await (conn as Pool).query(insertQuery, [songId, currentPlace, player])
+            currentPlace += 1
+        }
+
+        return 'success'
+    } catch (error) {
+        console.error(error);
+        return 'err'
+    }
+};
 export const getPlaylist = async (playlist: string) => {
     try {
         const playlistQuery = `
@@ -366,26 +402,37 @@ export const deleteFromPlaylist = async (playlistId: string | number, songIds: n
     }
 }
 
-export const updatePlaybackState = async (songId: number | null, currentTime: number, isPlaying: boolean) => {
+export const updatePlaybackState = async (songId: number | null, currentTime: number, isPlaying: boolean, player: number) => {
     try {
         let query: string;
         let params: any[] = [songId, currentTime, isPlaying];
 
         const forcedCheckQuery = `
-            SELECT forced, id, currenttime, isplaying
+            SELECT id, songid, currenttime, isplaying
             FROM playback
-            WHERE sysnum = 1;
+            WHERE id = $1;
         `;
-        const result = await (conn as Pool).query(forcedCheckQuery, []);
+        const result = await (conn as Pool).query(forcedCheckQuery, [player])
 
 
-        if (result.rows.length > 0 && result.rows[0].forced === true && (result.rows[0].id !== songId || result.rows[0].isplaying !== isPlaying)) {
-            const song = await getSong()
-            return {
-                action: 'update',
-                data: song
+        if (result.rows.length > 0) {
+            const dbRow = result.rows[0]
+        
+            const timeDifference = Math.abs(dbRow.currenttime - currentTime)
+        
+            if (
+                dbRow.songid !== songId ||
+                dbRow.isplaying !== isPlaying ||
+                timeDifference > 10
+            ) {
+                const song = await getSong(player);
+                return {
+                    action: 'update',
+                    data: song
+                }
             }
         }
+        
 
         if (songId === null) {
             return {
@@ -395,16 +442,16 @@ export const updatePlaybackState = async (songId: number | null, currentTime: nu
         } else {
             query = `
                 UPDATE playback
-                SET id = $1, currenttime = $2, isplaying = $3, forced = false
-                WHERE sysnum = 1;
+                SET songid = $1, currenttime = $2, isplaying = $3
+                WHERE id = $4;
             `;
-            params = [songId, currentTime, isPlaying];
+            params = [songId, currentTime, isPlaying, player];
         }
 
         await (conn as Pool).query(query, params);
-        
-        const queryPlayingDevice = `SELECT playingdevice FROM playback LIMIT 1`
-        const resultPlayingDevice = await (conn as Pool).query(queryPlayingDevice, []);
+
+        const queryPlayingDevice = `SELECT playingdevice FROM playback WHERE id = $1`
+        const resultPlayingDevice = await (conn as Pool).query(queryPlayingDevice, [player]);
         return {
             action: 'success',
             data: resultPlayingDevice.rows[0].playingdevice
@@ -418,14 +465,31 @@ export const updatePlaybackState = async (songId: number | null, currentTime: nu
     }
 }
 
-export const handlePlayPlayback = async (isPlaying: boolean) => {
+export const changeSongProgress = async (player: number, progress: number) => {
     try {
         const query = `
             UPDATE playback
-            SET isplaying = $1, forced = true
-            WHERE sysnum = 1;
+            SET currenttime = $1
+            WHERE id = $2;
         `;
-        await (conn as Pool).query(query, [!isPlaying]);
+        const params = [progress, player];
+
+        await (conn as Pool).query(query, params);
+
+        return 'success'
+    } catch (error) {
+        console.log(error);
+        return 'err'
+    }
+};
+export const handlePlayPlayback = async (isPlaying: boolean, player: number) => {
+    try {
+        const query = `
+            UPDATE playback
+            SET isplaying = $1
+            WHERE id = $2;
+        `;
+        await (conn as Pool).query(query, [!isPlaying, player]);
         return 'success'
     } catch (error) {
         console.log(error)
@@ -538,7 +602,6 @@ export const deletePlaylist = async (id: number) => {
 };
 export const changePlaylistOrder = async (playlists: Playlist[]) => {
     try {
-        console.log(playlists)
         const query = `
             UPDATE playlists
             SET place = $1
@@ -553,3 +616,239 @@ export const changePlaylistOrder = async (playlists: Playlist[]) => {
         return 'err'
     }
 }
+export const changeQueueOrder = async (songs: QueueSong[]) => {
+    console.log(songs)
+    try {
+        const query = `
+            UPDATE queue
+            SET place = $1
+            WHERE id = $2
+        `
+        for (let i = 0; i < songs.length; i++) {
+            const song = songs[i]
+            const result = await (conn as Pool).query(query, [i + 1, song.queue_id]);
+        }
+        return 'success'
+    } catch (error) {
+        console.log(error)
+        return 'err'
+    }
+}
+
+export const deleteFromQueue = async (id: number | string) => {
+    try {
+
+        const query = `DELETE FROM queue WHERE id = $1`
+
+        const result = await (conn as Pool).query(query, [id]);
+
+        return 'success'
+
+    } catch (error) {
+        return 'err'
+    }
+}
+
+export const playPrevSong = async (player: number) => {
+    try {
+        const queryPlaying = `SELECT songid FROM playback WHERE id = $1`
+        const resultPlaying = await (conn as Pool).query(queryPlaying, [player])
+        const currentSongId = resultPlaying.rows[0]?.songid
+
+        const queryPrev = `SELECT * FROM songshistory WHERE playerid = $1 ORDER BY date DESC LIMIT 1`
+        const resultPrev = await (conn as Pool).query(queryPrev, [player])
+
+        if (resultPrev.rows.length === 0) {
+            return 'No songs'
+        }
+
+        const prevSong = resultPrev.rows[0];
+
+        const deletePrevQuery = `DELETE FROM songshistory WHERE id = $1`;
+        await (conn as Pool).query(deletePrevQuery, [prevSong.id]);
+
+        const updatePlaybackQuery = `
+            UPDATE playback
+            SET currenttime = 0, isplaying = true, songid = $1
+            WHERE id = $2;
+        `;
+        await (conn as Pool).query(updatePlaybackQuery, [prevSong.songid, player]);
+
+        if (currentSongId) {
+            await addToQueueFirst(currentSongId, player);
+        }
+
+        return 'success';
+    } catch (error) {
+        console.log(error);
+        return 'err';
+    }
+};
+
+
+import { spawn } from 'child_process';
+import path from 'path';
+
+interface SongData {
+    title: string;
+    artist: string;
+    duration: number;
+}
+
+export const downloadSongs = async (playlists: string[] | number[], url: string) => {
+    try {
+        if (!/^https?:\/\/.+/i.test(url)) {
+            throw new Error('Invalid YouTube URL');
+        }
+
+        const ytDlpPath = path.resolve(`${process.env.DOWNLOAD_LOCATION}`, 'yt-dlp');
+
+        const playlistProcess = spawn(ytDlpPath, ['--flat-playlist', '--print-json', url]);
+
+        let playlistData = '';
+        const playlistErrorData: Buffer[] = [];
+
+        for await (const chunk of playlistProcess.stdout) {
+            playlistData += chunk;
+        }
+
+        for await (const chunk of playlistProcess.stderr) {
+            playlistErrorData.push(chunk);
+        }
+
+        await new Promise<void>((resolve, reject) => {
+            playlistProcess.on('close', (code) => {
+                if (code !== 0) {
+                    reject(new Error(`yt-dlp failed to fetch playlist: ${Buffer.concat(playlistErrorData).toString()}`));
+                } else {
+                    resolve();
+                }
+            });
+        });
+
+        const jsonObjects: string[] = playlistData
+            .split('\n')
+            .filter((line) => line.trim().length > 0);
+
+        const playlistEntries = jsonObjects.map((jsonString) => {
+            try {
+                return JSON.parse(jsonString);
+            } catch (err) {
+                console.error('Error parsing JSON string:', jsonString);
+                throw err;
+            }
+        });
+
+        for (const entry of playlistEntries) {
+            const videoUrl = entry.url || `https://www.youtube.com/watch?v=${entry.id}`;
+
+            const videoInfoProcess = spawn(ytDlpPath, ['--print-json', videoUrl]);
+            let videoInfoData = '';
+            const videoErrorData: Buffer[] = [];
+
+            for await (const chunk of videoInfoProcess.stdout) {
+                videoInfoData += chunk;
+            }
+
+            for await (const chunk of videoInfoProcess.stderr) {
+                videoErrorData.push(chunk);
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                videoInfoProcess.on('close', (code) => {
+                    if (code !== 0) {
+                        reject(new Error(`yt-dlp failed to fetch video info: ${Buffer.concat(videoErrorData).toString()}`));
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+
+            const videoInfo = JSON.parse(videoInfoData);
+            const { title = 'Unknown Title', uploader = 'Unknown Artist', duration = 0 } = videoInfo;
+
+            const songData: SongData = {
+                title: title || 'Unknown_Title',
+                artist: uploader,
+                duration,
+            };
+
+
+
+            const sanitizedTitle = songData.title.replace(/[^a-zA-Z0-9]/g, '_');
+            const mp3OutputPath = `${process.env.DOWNLOAD_LOCATION}${sanitizedTitle}.mp3`;
+
+            const checkSongQuery = `
+                SELECT id FROM songs 
+                WHERE title = $1 
+                AND ABS(duration - $2) <= 1
+            `;
+            const existingSong = await (conn as Pool).query(checkSongQuery, [
+                songData.title,
+                songData.duration,
+            ]);
+
+            if (existingSong.rows.length > 0) {
+                await addToAnotherPlaylists(playlists, [existingSong.rows[0].id])
+                continue; 
+            }
+
+
+            // Download and convert to MP3
+            const downloadProcess = spawn(ytDlpPath, [
+                '-o',
+                `${sanitizedTitle}.%(ext)s`,
+                '-x',
+                '--audio-format',
+                'mp3',
+                '-o',
+                `${mp3OutputPath}`,
+                videoUrl,
+            ]);
+            const downloadErrorData: Buffer[] = [];
+
+            for await (const chunk of downloadProcess.stderr) {
+                downloadErrorData.push(chunk);
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                downloadProcess.on('close', (code) => {
+                    if (code !== 0) {
+                        reject(new Error(`yt-dlp failed to download or convert video: ${Buffer.concat(downloadErrorData).toString()}`));
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+
+            const insertSongQuery = `
+                INSERT INTO songs (title, src, artist, duration)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id
+            `;
+            const result = await (conn as Pool).query(insertSongQuery, [
+                songData.title,
+                `/${sanitizedTitle}.mp3`,
+                songData.artist,
+                songData.duration,
+            ]);
+
+            const songId: number = result.rows[0].id;
+
+            const insertPlaylistSongQuery = `
+                INSERT INTO playlistssong (playlistid, songid)
+                VALUES ($1, $2)
+            `;
+
+            for (const playlistId of playlists) {
+                await (conn as Pool).query(insertPlaylistSongQuery, [playlistId, songId]);
+            }
+            await (conn as Pool).query(insertPlaylistSongQuery, [1, songId]);
+        }
+
+        return 'success';
+    } catch (error) {
+        console.error(error);
+        return 'err';
+    }
+};
