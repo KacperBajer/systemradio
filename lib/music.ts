@@ -84,6 +84,7 @@ export const getOnlineDevices = async () => {
         const allDevices = [...onlineDevices, ...missingDevices];
         const uniqueDevices = Array.from(new Map(allDevices.map(device => [device.ip, device])).values());
 
+        
         return {
             devices: uniqueDevices,
             playingDevices: playbackDevices
@@ -103,6 +104,22 @@ export const changePlayingDevice = async (ip: string, player: number) => {
 
         const result = await (conn as Pool).query(
             query, [ip, player]
+        );
+        return 'success'
+    } catch (error) {
+        console.log(error)
+        return 'err'
+    }
+}
+export const changePlayingStatus = async (isPlaying: boolean, player: number) => {
+    try {
+        const query = `
+            UPDATE playback
+            SET isplaying = $1
+            WHERE id = $2`;
+
+        const result = await (conn as Pool).query(
+            query, [!isPlaying, player]
         );
         return 'success'
     } catch (error) {
@@ -157,6 +174,13 @@ export const getQueue = async (player: number) => {
 export const skipSong = async (player: number) => {
     try {
 
+        const checkIsNextSongAvailableQuery = `SELECT * FROM queue WHERE playerid = $1`
+        const resultChecking = await (conn as Pool).query(
+            checkIsNextSongAvailableQuery, [player]
+        );
+        if(resultChecking.rows.length < 1) {
+            return 'err'
+        }
         const playingQuery = 'SELECT songid FROM playback WHERE id = $1'
         const resultPlaying = await (conn as Pool).query(
             playingQuery, [player]

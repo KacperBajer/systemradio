@@ -1,6 +1,6 @@
 'use client'
 import { formatTime } from '@/lib/func';
-import { changeSongProgress, getSong, handlePlayPlayback, playPrevSong, setOnlineDevice, skipSong, updatePlaybackState } from '@/lib/music';
+import { changePlayingStatus, changeSongProgress, getSong, handlePlayPlayback, playPrevSong, setOnlineDevice, skipSong, updatePlaybackState } from '@/lib/music';
 import { Song } from '@/lib/types';
 import React, { useEffect, useRef, useState } from 'react'
 import { IoIosSkipBackward } from "react-icons/io";
@@ -145,6 +145,7 @@ const MusicPlayer = () => {
             if (res === 'err') {
                 toast.error('Could not play the next song');
                 setIsPlaying(false);
+                await changePlayingStatus(true, player)
                 return;
             }
         } catch (error) {
