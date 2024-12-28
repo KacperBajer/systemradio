@@ -82,9 +82,10 @@ export const getOnlineDevices = async () => {
             .map(device => ({ ip: device.playingdevice, date: null }));
 
         const allDevices = [...onlineDevices, ...missingDevices];
+        const uniqueDevices = Array.from(new Map(allDevices.map(device => [device.ip, device])).values());
 
         return {
-            devices: allDevices,
+            devices: uniqueDevices,
             playingDevices: playbackDevices
         };
     } catch (error) {
