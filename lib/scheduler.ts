@@ -42,7 +42,7 @@ export const checkAndExecuteEvents = async () => {
         `SELECT * FROM events 
         WHERE (date <= $1 AND executed = FALSE)
         OR (isrecurring = TRUE 
-            AND (recurrencetime AT TIME ZONE 'UTC')::time <= ($2 AT TIME ZONE 'UTC')::time 
+            AND recurrencetime::time <= $2::time 
             AND executed = FALSE 
             AND date <= $3 
             AND $4 = ANY(recurrencedays))`,
