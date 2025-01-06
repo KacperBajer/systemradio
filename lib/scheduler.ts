@@ -100,7 +100,15 @@ export const getEvents = async () => {
     }
 }
 export const createEvents = async (data: CreateEventData) => {
-    const currentDate = new Date().toISOString(); 
+  const currentDate = new Date();
+
+  const timeParts = data.time ? data.time.split(':') : null; 
+  const formattedDate = timeParts 
+      ? new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(),
+                parseInt(timeParts[0], 10), 
+                parseInt(timeParts[1], 10), 
+                parseInt(timeParts[2], 10))
+      : null;
     try {
         const query = `
             INSERT INTO events 
@@ -109,7 +117,7 @@ export const createEvents = async (data: CreateEventData) => {
         `;
       const values = [
         data.name,
-        data.date || currentDate,
+        data.recurring ? formattedDate?.toISOString() || currentDate.toISOString() : data.date,
         data.function,
         {},
         false,
