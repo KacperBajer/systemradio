@@ -1,6 +1,6 @@
 'use client'
 import { usePlayer } from '@/context/PlayerContext'
-import { changePlayingDevice, getOnlineDevices, getPlayers } from '@/lib/music'
+import { getPlayers } from '@/lib/music'
 import React, { useEffect, useRef, useState } from 'react'
 import { toast } from 'react-toastify'
 

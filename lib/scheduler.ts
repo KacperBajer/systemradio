@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import conn from './db';
 import { Pool } from 'pg';
 import { CreateEventData } from './types';
+import { changePlayingStatus, skipSong } from './music';
 
 
 
@@ -12,9 +13,21 @@ interface EventHandlers {
   
 
 const eventHandlers: EventHandlers = {
-    startPlaying: async (payload: number[]) => {
+    play: async (payload: number[]) => {
+        for (const p of payload) {
+            changePlayingStatus(false, p)
+        }
+    },
+    playNext: async (payload: number[]) => {
         console.log(payload)
-
+        for (const p of payload) {
+            skipSong(p)
+        }
+    },
+    pause: async (payload: number[]) => {
+        for (const p of payload) {
+            changePlayingStatus(true, p)
+        }
     },
 };
 
@@ -87,8 +100,7 @@ export const createEvents = async (data: CreateEventData) => {
         const query = `
             INSERT INTO events 
             (name, date, action, payload, executed, isrecurring, recurrencetime, recurrencedays)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *;
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
         `;
       const values = [
         data.name,
@@ -103,7 +115,67 @@ export const createEvents = async (data: CreateEventData) => {
   
       const result = await (conn as Pool).query(query, values);
   
+      return 'success'
     } catch (error) {
+        console.log(error)
         return 'err'
     }
 }
+export const updateEventPayloads = async (ids: number[], player: string | number) => {
+    try {
+      const fetchQuery = `SELECT id, payload FROM events;`;
+      const events = await (conn as Pool).query(fetchQuery);
+  
+      if (events.rows.length === 0) {
+        return 'err';
+      }
+  
+      for (const event of events.rows) {
+        const currentPayload: string[] = event.payload || [];
+        let updatedPayload: string[];
+  
+        if (ids.includes(event.id)) {
+          if (!currentPayload.includes(player.toString())) {
+            updatedPayload = [...currentPayload, player.toString()];
+          } else {
+            updatedPayload = currentPayload; 
+          }
+        } else {
+          updatedPayload = currentPayload.filter((p) => p != player);
+        }
+  
+        const updateQuery = `
+          UPDATE events
+          SET payload = $1
+          WHERE id = $2;
+        `;
+        await (conn as Pool).query(updateQuery, [updatedPayload, event.id]);
+      }
+  
+      return 'success';
+    } catch (error) {
+      console.log(error);
+      return 'err';
+    }
+  };
+  
+  export const deleteEvent = async (id: number) => {
+    try {
+      const deleteQuery = `
+        DELETE FROM events
+        WHERE id = $1;
+      `;
+      const result = await (conn as Pool).query(deleteQuery, [id]);
+  
+      if (result.rowCount === 0) {
+        return 'err';
+      }
+  
+      return 'success';
+    } catch (error) {
+      console.log(error);
+      return 'err';
+    }
+  };
+  
+  

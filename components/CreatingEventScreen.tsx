@@ -4,6 +4,7 @@ import DatePicker from "react-datepicker";
 import CustomCheckbox from './CustomCheckbox';
 import { createEvents } from '@/lib/scheduler';
 import { CreateEventData } from '@/lib/types';
+import { toast } from 'react-toastify';
 
 type Props = {
   inputValue: any
@@ -67,7 +68,7 @@ const Screen = ({ page, inputValue, handleChange, setInputValue }: { page: numbe
                     : [...prev.days, item]
                 }))
               } />
-              <p>{item}</p>
+              <p>{item.substr(0, 3)}</p>
             </div>
           ))}
         </div>
@@ -82,7 +83,7 @@ const Screen = ({ page, inputValue, handleChange, setInputValue }: { page: numbe
   }
 }
 
-const CreatingEventScreen = ({ inputValue, handleChange, setInputValue }: Props) => {
+const CreatingEventScreen = ({ inputValue, handleChange, setInputValue, handleClose }: Props & {handleClose: () => void}) => {
 
   const [page, setPage] = useState(1)
 
@@ -90,6 +91,12 @@ const CreatingEventScreen = ({ inputValue, handleChange, setInputValue }: Props)
 
   const handleSubmit = async () => {
     const res = await createEvents(inputValue)
+    if(res === 'err') {
+      toast.error('Something went wrong')
+      return
+    }
+    toast.success('Event created')
+    handleClose()
   }
 
   return (

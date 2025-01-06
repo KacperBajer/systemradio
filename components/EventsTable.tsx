@@ -2,14 +2,18 @@ import React from 'react'
 import CustomCheckbox from './CustomCheckbox'
 import { MdDelete } from "react-icons/md";
 import TooltipButton from './TooltipButton';
+import { EventActions } from '@/lib/constants';
+import { toast } from 'react-toastify';
+import { deleteEvent } from '@/lib/scheduler';
 
 type Props = {
     data: any[]
     checked: number[]
     setChecked: React.Dispatch<React.SetStateAction<number[]>>
+    fetchData: () => void
 }
 
-const EventsTable = ({data, checked, setChecked}: Props) => {
+const EventsTable = ({data, checked, setChecked, fetchData}: Props) => {
   
     
     const handleSelectAllChange = () => {
@@ -21,6 +25,53 @@ const EventsTable = ({data, checked, setChecked}: Props) => {
         }
     };
 
+    const getNameByFunction = (functionName: string) => {
+        const action = EventActions.find(item => item.function === functionName);
+        return action ? action.name : 'Not found';
+    };
+
+    const formatTime = (isRecurring: boolean, date: Date, time: string, days: string[]) => {
+        if(!isRecurring) {
+            return new Intl.DateTimeFormat('pl-PL', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).format(date).replace(',', '');
+        }
+        const dayMap: { [key: string]: string } = {
+            Monday: 'Mon',
+            Tuesday: 'Tue',
+            Wednesday: 'Wed',
+            Thursday: 'Thu',
+            Friday: 'Fri',
+            Saturday: 'Sat',
+            Sunday: 'Sun'
+        };
+
+        const dayShortcuts = days
+            .map(day => dayMap[day])
+            .filter(Boolean)
+            .join(',');
+
+        return `${dayShortcuts} ${time.split('+')[0]}`;
+    }
+
+    const handleDelete = async (id: number) => {
+        try {
+            const res = await deleteEvent(id)
+            if(res === 'err') {
+                toast.error('Failed to delete event')
+                return
+            }
+            toast.success('Event deleted')
+            fetchData()
+        } catch (error) {
+            toast.error('Failed to delete event')
+        }
+    }
 
     return (
     <div className='overflow-x-auto'>
@@ -43,14 +94,14 @@ const EventsTable = ({data, checked, setChecked}: Props) => {
                         </div>
                         <div className='w-[200px] flex justify-center'>
                             <div className='py-2 px-4 bg-dark-50 rounded-md text-center w-fit'>
-                                <p>{item.action}</p>
+                                <p>{getNameByFunction(item.action)}</p>
                             </div>
                         </div>
                         <div className='w-[200px] text-center'>
-                            <p>2024-12-12</p>
+                            <p>{formatTime(item.isrecurring, item.date, item.recurrencetime, item.recurrencedays)}</p>
                         </div>
                         <div className='w-[38px] flex justify-center'>
-                            <TooltipButton text='Delete event'>
+                            <TooltipButton onClick={() => handleDelete(item.id)} text='Delete event'>
                                 <MdDelete className='text-lg text-red-600' />
                             </TooltipButton>
                         </div>

@@ -13,4 +13,4 @@ export const EventActions = [
     },
 ]
 
-export const days = ['Mon', 'Tue', "Wed", "Thu", "Fri", "Sat", "Sun"]
+export const days = ['Monday', 'Tuesday', "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
