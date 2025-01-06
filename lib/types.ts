@@ -22,3 +22,11 @@ export type QueueSong = {
   queue_id: number
   place: number
 } & Song
+export type CreateEventData = {
+  name: string
+  function: string
+  recurring: null | boolean
+  date: null | string | Date
+  days: string[]
+  time: string
+}

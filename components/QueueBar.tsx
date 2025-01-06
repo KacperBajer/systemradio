@@ -10,19 +10,21 @@ import { FaRandom } from "react-icons/fa";
 import { IoSettingsSharp } from "react-icons/io5";
 import TooltipButton from './TooltipButton'
 import { usePlayer } from '@/context/PlayerContext'
+import EventsPopup from './EventsPopup'
 
 const QueueBar = () => {
 
     const [songs, setSongs] = useState<QueueSong[] | null>(null)
+    const [showEventsPopup, setShowEventsPopup] = useState(false)
     const [isLoadingShuffling, setIsLoadingShuffling] = useState(false)
-    const {player} = usePlayer()
+    const { player } = usePlayer()
     const fetchingDisableRef = useRef(false)
     const playerRef = useRef(player)
     playerRef.current = player
     fetchingDisableRef.current = false
 
     const fetchData = async () => {
-        if(fetchingDisableRef.current) return
+        if (fetchingDisableRef.current) return
         const res = await getQueue(playerRef.current)
         setSongs(res)
     }
@@ -88,44 +90,48 @@ const QueueBar = () => {
     }
 
     return (
-        <div className='h-screen sticky top-0 right-0 w-[350px] min-w-[350px] max-w-[350px] p-4'>
-            <div className='h-fit min-h-[calc(100vh-32px)] max-h-[calc(100vh-32px)] flex flex-col bg-dark-50 rounded-lg p-5'>
-                <p className='text-center text-3xl font-bold mb-6'>Queue</p>
-                <div className='overflow-x-auto hideScrollbar'>
-                    {songs && <ReactSortable onStart={() => fetchingDisableRef.current = true} list={songs as QueueSong[]} setList={(newState) => {
-                        setSongs(newState)
-                    }} onEnd={(evt) => {
-                        if (evt.newIndex !== evt.oldIndex) {
-                            const reorderedSongs = [...songs!];
-                            const [movedItem] = reorderedSongs.splice(evt.oldIndex!, 1);
-                            reorderedSongs.splice(evt.newIndex!, 0, movedItem);
-                            changeOrder(reorderedSongs);
-                        }
-                    }} className='flex flex-col gap-0.5'>
-                        {songs?.map((item, index) => (
-                            <div key={index} className='p-2 hover:bg-dark-200/50 rounded-md relative hover:cursor-pointer select-none flex justify-between items-center group'>
-                                <SongCard
-                                    song={item}
-                                />
-                                <button className='group-hover:opacity-100 p-2 bg-dark-50 rounded-md z-10 absolute right-3 opacity-0' onClick={() => handleDelete(item.queue_id)}>
-                                    <FaTrash className='text-sm text-red-700' />
-                                </button>
-                            </div>
-                        ))}
-                    </ReactSortable>}
-                </div>
-                <div className='flex-1'></div>
-                <div className='pt-2 flex gap-2 items-center'>
-                    <button className='px-4 py-1.5 rounded-md outline-none appearance-none bg-dark-200/50 font-bold hover:cursor-pointer w-full'>Events</button>
-                    <TooltipButton disabled={!songs || isLoadingShuffling} onClick={() => shuffleSongs(songs as QueueSong[])} bgColor='bg-dark-200/50' text='Shuffle queue'>
-                        <FaRandom />
-                    </TooltipButton>
-                    <TooltipButton bgColor='bg-dark-200/50' text='Settings'>
-                        <IoSettingsSharp />
-                    </TooltipButton>
+        <>
+            {showEventsPopup && <EventsPopup handleClose={() => setShowEventsPopup(false)} />}
+            <div className='h-screen sticky top-0 right-0 w-[350px] min-w-[350px] max-w-[350px] p-4'>
+                <div className='h-fit min-h-[calc(100vh-32px)] max-h-[calc(100vh-32px)] flex flex-col bg-dark-50 rounded-lg p-5'>
+                    <p className='text-center text-3xl font-bold mb-6'>Queue</p>
+                    <div className='overflow-x-auto hideScrollbar'>
+                        {songs && <ReactSortable onStart={() => fetchingDisableRef.current = true} list={songs as QueueSong[]} setList={(newState) => {
+                            setSongs(newState)
+                        }} onEnd={(evt) => {
+                            if (evt.newIndex !== evt.oldIndex) {
+                                const reorderedSongs = [...songs!];
+                                const [movedItem] = reorderedSongs.splice(evt.oldIndex!, 1);
+                                reorderedSongs.splice(evt.newIndex!, 0, movedItem);
+                                changeOrder(reorderedSongs);
+                            }
+                        }} className='flex flex-col gap-0.5'>
+                            {songs?.map((item, index) => (
+                                <div key={index} className='p-2 hover:bg-dark-200/50 rounded-md relative hover:cursor-pointer select-none flex justify-between items-center group'>
+                                    <SongCard
+                                        song={item}
+                                    />
+                                    <button className='group-hover:opacity-100 p-2 bg-dark-50 rounded-md z-10 absolute right-3 opacity-0' onClick={() => handleDelete(item.queue_id)}>
+                                        <FaTrash className='text-sm text-red-700' />
+                                    </button>
+                                </div>
+                            ))}
+                        </ReactSortable>}
+                    </div>
+                    <div className='flex-1'></div>
+                    <div className='pt-2 flex gap-2 items-center'>
+                        <button onClick={() => setShowEventsPopup(true)} className='px-4 py-1.5 rounded-md outline-none appearance-none bg-dark-200/50 font-bold hover:cursor-pointer w-full'>Events</button>
+                        <TooltipButton disabled={!songs || isLoadingShuffling} onClick={() => shuffleSongs(songs as QueueSong[])} bgColor='bg-dark-200/50' text='Shuffle queue'>
+                            <FaRandom />
+                        </TooltipButton>
+                        <TooltipButton bgColor='bg-dark-200/50' text='Settings'>
+                            <IoSettingsSharp />
+                        </TooltipButton>
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
+
     )
 }
 

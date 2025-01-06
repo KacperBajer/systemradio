@@ -2,6 +2,7 @@ import MusicPlayer from '@/components/MusicPlayer'
 import QueueBar from '@/components/QueueBar'
 import SideBar from '@/components/SideBar'
 import { PlayerProvider } from '@/context/PlayerContext'
+import { startScheduler } from '@/lib/scheduler'
 import { getUser } from '@/lib/users'
 import { redirect } from 'next/navigation'
 import React, { ReactNode } from 'react'
@@ -13,9 +14,12 @@ const layout = async ({ children }: { children: ReactNode }) => {
 
   const user = await getUser()
 
+
   if (!user) {
     redirect('/sign-in')
   }
+
+  startScheduler()
 
   return (
     <PlayerProvider player={1}>
