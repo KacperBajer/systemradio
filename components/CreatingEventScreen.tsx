@@ -74,7 +74,7 @@ const Screen = ({ page, inputValue, handleChange, setInputValue }: { page: numbe
         </div>
         <input 
           className='w-full bg-transparent outline-none text-white px-4 py-1.5 rounded-md border-dark-200/50 border-2'
-          placeholder='10:00'
+          placeholder='10:00:00'
           name='time'
           value={inputValue.time}
           onChange={handleChange}

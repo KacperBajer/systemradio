@@ -52,7 +52,7 @@ export const checkAndExecuteEvents = async () => {
 
 
         for (const event of events) {
-            const { id, action, payload, isrecurring } = event;
+            const { id, action, payload, isrecurring, date } = event;
 
             if (eventHandlers[action]) {
                 await eventHandlers[action](payload);
@@ -61,7 +61,7 @@ export const checkAndExecuteEvents = async () => {
 
                     await (conn as Pool).query(
                         `UPDATE events SET executed = FALSE, date = $1 WHERE id = $2`,
-                        [getNextExecutionDate(), id]
+                        [getNextExecutionDate(date), id]
                     );
                 } else {
                     await (conn as Pool).query(
@@ -76,14 +76,16 @@ export const checkAndExecuteEvents = async () => {
     }
 };
 
-const getNextExecutionDate = (): Date => {
-    const now = new Date();
-    const nextDate = new Date(now);
-    nextDate.setDate(now.getDate() + 1);
-    nextDate.setHours(0, 0, 0, 0); 
-    return nextDate;
-};
+const getNextExecutionDate = (inputDate: string): Date => {
+  const parsedDate = new Date(inputDate);
+  if (isNaN(parsedDate.getTime())) {
+      throw new Error("Invalid date format. Please provide a valid date in the format YYYY-MM-DD HH:mm:ss+TZ.");
+  }
 
+  parsedDate.setHours(parsedDate.getHours() + 24);
+
+  return parsedDate;
+};
 const scheduler = cron.schedule('*/15 * * * * *', checkAndExecuteEvents);
 
 export const startScheduler = async () => {
