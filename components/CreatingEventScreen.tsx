@@ -51,7 +51,7 @@ const Screen = ({ page, inputValue, handleChange, setInputValue }: { page: numbe
           timeFormat="HH:mm"
           closeOnScroll
           placeholderText='Date'
-          dateFormat="yyyy-MM-dd HH:mm"
+          dateFormat="yyyy-MM-dd HH:mm:ss"
           className='w-[318px] bg-transparent outline-none text-white px-4 py-1.5 rounded-md border-dark-200/50 border-2'
         />
       </div>

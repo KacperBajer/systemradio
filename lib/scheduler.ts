@@ -34,17 +34,23 @@ const eventHandlers: EventHandlers = {
 export const checkAndExecuteEvents = async () => {
     const now = new Date();
     const currentDay = now.toLocaleString('pl-PL', { weekday: 'long' }).toLowerCase(); 
+    const currentTime = now.toISOString().slice(11, 19);
 
     try {
 
-        const result = await (conn as Pool).query(
-            `SELECT * FROM events 
-            WHERE (date <= $1 AND executed = FALSE)
-            OR (isrecurring = TRUE AND recurrencetime <= $2 AND executed = FALSE AND date <= $3 AND $4 = ANY(recurrencedays))`,
-            [now, now.toTimeString().slice(0, 5), now, currentDay]
-        );
+      const result = await (conn as Pool).query(
+        `SELECT * FROM events 
+        WHERE (date <= $1 AND executed = FALSE)
+        OR (isrecurring = TRUE AND 
+            (recurrencetime AT TIME ZONE 'UTC')::time <= $2::time AND 
+            executed = FALSE AND 
+            date <= $3 AND 
+            $4 = ANY(recurrencedays))`,
+        [now, currentTime, now, currentDay]
+    );
 
         const events = result.rows;
+
 
         for (const event of events) {
             const { id, action, payload, isrecurring } = event;
