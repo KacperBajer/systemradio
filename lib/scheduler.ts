@@ -86,7 +86,7 @@ const getNextExecutionDate = (inputDate: string): Date => {
 
   return parsedDate;
 };
-const scheduler = cron.schedule('*/15 * * * * *', checkAndExecuteEvents);
+const scheduler = cron.schedule('*/5 * * * * *', checkAndExecuteEvents);
 
 export const startScheduler = async () => {
     scheduler.stop()
