@@ -41,11 +41,11 @@ export const checkAndExecuteEvents = async () => {
       const result = await (conn as Pool).query(
         `SELECT * FROM events 
         WHERE (date <= $1 AND executed = FALSE)
-        OR (isrecurring = TRUE 
-            AND recurrencetime::time <= $2::time 
-            AND executed = FALSE 
-            AND date <= $3 
-            AND $4 = ANY(recurrencedays))`,
+        OR (isrecurring = TRUE AND 
+            (recurrencetime AT TIME ZONE 'UTC')::time <= $2::time AND 
+            executed = FALSE AND 
+            date <= $3 AND 
+            $4 = ANY(recurrencedays))`,
         [now, currentTime, now, currentDay]
     );
 
