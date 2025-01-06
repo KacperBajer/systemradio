@@ -102,7 +102,7 @@ const EventsTable = ({data, checked, setChecked, fetchData}: Props) => {
                             <p>{formatTime(item.isrecurring, item.date, item.recurrencetime, item.recurrencedays)}</p>
                         </div>
                         <div className='w-[150px] text-center'>
-                            <p className={`uppercase ${item.executed ? 'text-green-500' : 'text-red-500'}`}>{item.executed.toString()}</p>
+                            {item.isrecurring ? <p className='text-gray-500'>-</p> : <p className={`uppercase ${item.executed ? 'text-green-500' : 'text-red-500'}`}>{item.executed.toString()}</p>}
                         </div>
                         <div className='w-[38px] flex justify-center'>
                             <TooltipButton onClick={() => handleDelete(item.id)} text='Delete event'>
