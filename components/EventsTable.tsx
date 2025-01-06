@@ -82,6 +82,7 @@ const EventsTable = ({data, checked, setChecked, fetchData}: Props) => {
                     <p className='flex-1 min-w-[300px]'>Name</p>
                     <p className='w-[200px] text-center'>Action</p>
                     <p className='w-[200px] text-center'>Time</p>
+                    <p className='w-[150px] text-center'>Executed</p>
                     <MdDelete className='text-lg text-red-600 w-[38px] text-center' />
 
                 </div>
@@ -99,6 +100,9 @@ const EventsTable = ({data, checked, setChecked, fetchData}: Props) => {
                         </div>
                         <div className='w-[200px] text-center'>
                             <p>{formatTime(item.isrecurring, item.date, item.recurrencetime, item.recurrencedays)}</p>
+                        </div>
+                        <div className='w-[150px] text-center'>
+                            <p className={`uppercase ${item.executed ? 'text-green-500' : 'text-red-500'}`}>{item.executed.toString()}</p>
                         </div>
                         <div className='w-[38px] flex justify-center'>
                             <TooltipButton onClick={() => handleDelete(item.id)} text='Delete event'>
