@@ -112,14 +112,14 @@ const EventsPopup = ({ handleClose }: Props) => {
                 </TooltipButton>
               </div>
             </div>
-            {data && (
+            {data && <div className="overflow-y-auto max-h-[80vh] hideScrollbar">
               <EventsTable
                 fetchData={fetchData}
                 data={data}
                 checked={checked}
                 setChecked={setChecked}
               />
-            )}{" "}
+            </div>}
           </div>
         )}
       </div>
